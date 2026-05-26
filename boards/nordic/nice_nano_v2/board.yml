@@ -1,0 +1,11 @@
+# Copyright (c) 2024 Nordic Semiconductor ASA
+# SPDX-License-Identifier: Apache-2.0
+
+board:
+  name: nice_nano_v2
+  full_name: nice!nano v2
+  vendor: nordic
+  socs:
+    - name: nrf52840
+      variants:
+      - name: 'i2c'

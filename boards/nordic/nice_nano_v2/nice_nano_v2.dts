@@ -1,0 +1,227 @@
+// Copyright (c) 2024 Nordic Semiconductor ASA
+// SPDX-License-Identifier: Apache-2.0
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+
+/*
+ * nice!nano v2 Pro Micro compatible pin mapping:
+ * D0  = P0.00,  D1  = P0.01,  D2  = P0.15,  D3  = P0.14,  D4  = P0.13
+ * D5  = P0.12,  D6  = P0.11,  D7  = P0.10,  D8  = P0.09,  D9  = P0.08
+ * D10 = P0.07,  D11 = P0.24,  D12 = P0.25,  D13 = P0.02,  D14 = P0.05
+ * D15 = P0.04,  D16 = P0.06,  D18 = P1.02,  D19 = P1.04,  D20 = P0.17
+ * D21 = P0.20,  D22 = P1.00,  D23 = P0.29,  D24 = P1.07,  D25 = P0.31
+ */
+
+&pinctrl {
+	i2c0_default: i2c0_default {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 0, 17)>, <NRF_PSEL(TWIM_SCL, 0, 20)>; /* D20/D21 */
+			bias-disable;
+		};
+	};
+
+	i2c0_sleep: i2c0_sleep {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 0, 17)>, <NRF_PSEL(TWIM_SCL, 0, 20)>;
+			bias-disable;
+			low-power-enable;
+		};
+	};
+
+	pwm0_default: pwm0_default {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 0, 15)>; /* D2 */
+			nordic,drive-mode = <NRF_DRIVE_D0S1>;
+		};
+	};
+
+	pwm0_sleep: pwm0_sleep {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 0, 15)>;
+			low-power-enable;
+		};
+	};
+
+	pwm1_default: pwm1_default {
+		group1 {
+			psels = <NRF_PIN_DISCONNECTED>;
+		};
+	};
+
+	pwm1_sleep: pwm1_sleep {
+		group1 {
+			psels = <NRF_PIN_DISCONNECTED>;
+			low-power-enable;
+		};
+	};
+
+	spi3_default: spi3_default {
+		group1 {
+			psels = <NRF_PSEL(SPIM_MISO, 0, 5)>,   /* D14 */
+				<NRF_PSEL(SPIM_MOSI, 0, 6)>,   /* D16 */
+				<NRF_PSEL(SPIM_SCK, 0, 4)>;    /* D15 */
+		};
+	};
+
+	spi3_sleep: spi3_sleep {
+		group1 {
+			psels = <NRF_PSEL(SPIM_MISO, 0, 5)>,
+				<NRF_PSEL(SPIM_MOSI, 0, 6)>,
+				<NRF_PSEL(SPIM_SCK, 0, 4)>;
+			low-power-enable;
+		};
+	};
+};
+
+/ {
+	model = "nice_nano_v2";
+	compatible = "nice_nano_v2";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,console = &cdc_acm_uart0;
+		zephyr,shell-uart = &cdc_acm_uart0;
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		pwm_led0: pwm_led_0 {
+			pwms = <&pwm0 0 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = <&gpio1 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>; /* D22 */
+			label = "Push button switch 0";
+		};
+	};
+
+	aliases {
+		sw0 = &button0;
+		pwm-led0 = &pwm_led0;
+	};
+
+	pwmclock: pwmclock {
+		compatible = "pwm-clock";
+		#clock-cells = <1>;
+		pwms = <&pwm1 0 PWM_HZ(32768) PWM_POLARITY_NORMAL>;
+	};
+
+	/* Use internal VDDHDIV5 to sense battery voltage.
+	 * nice!nano v2 does not have an external battery divider.
+	 */
+	battery-divider {
+		compatible = "voltage-divider";
+		status = "okay";
+		io-channels = <&adc 12>; /* VDDHDIV5 */
+		output-ohms = <1>;
+		full-ohms = <5>;
+	};
+
+	/* Application-specific GPIO assignments.
+	 * Change these to match your actual wiring.
+	 */
+	zephyr,user {
+		int0-gpios = <&gpio0 13 0>;              /* D4  - IMU interrupt */
+		led-gpios = <&gpio0 15 GPIO_OPEN_SOURCE>; /* D2  - Status LED */
+		vcc-gpios = <&gpio0 31 0>;               /* D25 - Sensor power enable */
+	};
+};
+
+&reg0 {
+	status = "okay";
+};
+
+&reg1 {
+	regulator-initial-mode = <NRF5X_REG_MODE_DCDC>;
+};
+
+&adc {
+	status = "okay";
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&i2c0 {
+	compatible = "nordic,nrf-twim";
+	status = "okay";
+	zephyr,concat-buf-size = <1023>;
+	zephyr,flash-buf-max-size = <1023>;
+	clock-frequency = <I2C_BITRATE_FAST>;
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-1 = <&i2c0_sleep>;
+	pinctrl-names = "default", "sleep";
+
+	imu: imu@0 {
+		compatible = "i2c-device";
+		label = "imu";
+		reg = <0>;
+	};
+
+	mag: mag@0 {
+		compatible = "i2c-device";
+		label = "mag";
+		reg = <0>;
+	};
+};
+
+&pwm0 {
+	status = "okay";
+	pinctrl-0 = <&pwm0_default>;
+	pinctrl-1 = <&pwm0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&pwm1 {
+	status = "okay";
+	pinctrl-0 = <&pwm1_default>;
+	pinctrl-1 = <&pwm1_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+zephyr_udc0: &usbd {
+	compatible = "nordic,nrf-usbd";
+	status = "okay";
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};
+
+&cryptocell {
+	status = "disabled";
+};
+
+&nfct {
+	status = "disabled";
+};
+
+&spi3 {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+	max-frequency = <DT_FREQ_M(24)>;
+	pinctrl-0 = <&spi3_default>;
+	pinctrl-1 = <&spi3_sleep>;
+	pinctrl-names = "default", "sleep";
+	cs-gpios = <&gpio0 7 GPIO_ACTIVE_LOW>; /* D10 */
+
+	imu_spi: imu_spi@0 {
+		compatible = "vnd,spi-device";
+		spi-max-frequency = <DT_FREQ_M(24)>;
+		label = "imu-spi";
+		reg = <0>;
+	};
+};
